@@ -4,11 +4,19 @@ local Pose = require("pose")
 local Orientations = require("orientations")
 
 local Moves = {
-        FORWARD = 0,
-        TURNRIGHT = 1,
-        BACKWARD = 2,
-        TURNSLEFT = 3
-    }
+    FORWARD = 0,
+    TURNRIGHT = 1,
+    BACKWARD = 2,
+    TURNSLEFT = 3
+}
+
+local Materials = {
+    WALL = 1,
+    AIR = 2,
+    ORE = 3,
+    UNKNOWN = nil
+}
+
 
 local solver = {}
 
@@ -34,7 +42,7 @@ end
 -- and values that are the movement needed to reach the matching position
 -- @param pose the current pose for this turtle
 -- @return a table of position move pairs
-local function _getPossibleMoves(pose)
+local function getPossibleMoves(pose)
     local moveList = {}
 
     -- Handle moves forward and back based on current orientation
@@ -57,5 +65,33 @@ local function _getPossibleMoves(pose)
 
     return moveList
 end
+
+
+function solver:findNextMove()
+    local node, possibleMoves
+
+    while true do
+        sleep(0.05) -- 1 tick sleep to keep computer craft from crashing
+        node = self.queue:dequeue()
+        if node == nil then return nil end
+
+        possibleMoves = getPossibleMoves(node.pose)
+
+        for nextPosition, step in pairs(possibleMoves) do
+            -- if we don't know what the next block is we will move scan instead of moving forward
+            if ((self.map[nextPosition.y] == nil) or (self.map[nextPosition.y][nextPosition.x] == nil) or
+            (self.map[nextPosition.y][nextPosition.x][nextPosition.z] == Materials.UNKNOWN)) and (step == Moves.FORWARD) then
+                node:nextStep(node.pose, Moves.SCAN)
+            -- If we've reached a destination block that we'll dig it
+            elseif (self.map[nextPosition.y][nextPosition.x][nextPosition.z] == Materials.ORE) and (step == Moves.FORWARD) then
+                return node:nextStep(node.pose, Moves.DIG)
+            -- Otherwise queue up the next move
+            elseif (self.map[nextPosition.y][nextPosition.x][nextPosition.z] == Materials.AIR) and (not self.queue:contains(nextPosition)) then
+                self.queue:enqueue(node:nextStep(nextPosition, step))
+            end
+        end
+    end
+end
+
 
 return solver
